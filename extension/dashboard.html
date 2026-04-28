@@ -15,6 +15,8 @@
       <div class="topbar-right">
         <span id="last-fetched" class="muted"></span>
         <select id="branch-select"></select>
+        <button id="import-btn" class="btn-secondary" title="วาง JSON จาก Extension">📥 Import</button>
+        <button id="export-btn" class="btn-secondary" title="คัดลอก JSON">📤 Export</button>
         <button id="clear-btn" class="btn-danger">ล้างข้อมูล</button>
       </div>
     </header>
@@ -23,12 +25,31 @@
       <section id="empty" class="empty hidden">
         <div class="empty-emoji">📭</div>
         <h2>ยังไม่มีข้อมูล</h2>
-        <p>
+        <p id="empty-hint">
           เปิดหน้า
           <a href="https://merchant.grab.com/food/menu" target="_blank">merchant.grab.com</a>
           เพื่อให้ extension ดักข้อมูล แล้วกลับมาที่หน้านี้
         </p>
+        <button id="empty-import-btn" class="primary-btn-large">📥 Import JSON</button>
       </section>
+
+      <dialog id="import-dialog">
+        <form method="dialog" class="dialog-form">
+          <h3>Import ข้อมูลจาก Extension</h3>
+          <p class="muted" style="margin-bottom: 12px">
+            ใน Chrome Extension popup → กด "📤 Export" → คัดลอก JSON → วางที่นี่
+          </p>
+          <textarea
+            id="import-text"
+            rows="10"
+            placeholder='{"merchants": {...}, "events": [...]}'
+          ></textarea>
+          <div class="dialog-actions">
+            <button type="button" id="import-cancel">ยกเลิก</button>
+            <button type="button" id="import-submit" class="btn-primary">นำเข้า</button>
+          </div>
+        </form>
+      </dialog>
 
       <section id="content" class="hidden">
         <div class="branch-info">

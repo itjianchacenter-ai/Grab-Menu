@@ -78,6 +78,86 @@ body {
   background: #fef2f2;
 }
 
+.btn-secondary {
+  background: #fff;
+  border: 1px solid #d6d3d1;
+  color: #44403c;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background: #f5f5f4;
+}
+
+.btn-primary {
+  background: #059669;
+  border: 1px solid #047857;
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: #047857;
+}
+
+.primary-btn-large {
+  margin-top: 16px;
+  background: #059669;
+  border: none;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary-btn-large:hover {
+  background: #047857;
+}
+
+#import-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+#import-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+.dialog-form h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.dialog-form textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 8px;
+  border: 1px solid #d6d3d1;
+  border-radius: 6px;
+  resize: vertical;
+}
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.dialog-actions button {
+  background: #fff;
+  border: 1px solid #d6d3d1;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
 /* ========== Container ========== */
 .container {
   max-width: 1280px;

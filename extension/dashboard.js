@@ -46,10 +46,51 @@ let state = {
   logFilter: { type: "" },
 };
 
+// Detect environment: extension (chrome.storage) vs standalone (localStorage / API)
+const isExtension = typeof chrome !== "undefined" && chrome.storage?.local;
+const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const SYNC_API = `${location.origin}/api/data`;
+
+async function loadStorage() {
+  if (isExtension) {
+    return await new Promise((res) =>
+      chrome.storage.local.get(["merchants", "events"], (d) => res(d || {})),
+    );
+  }
+  if (isLocalhost) {
+    try {
+      const r = await fetch(SYNC_API, { cache: "no-store" });
+      if (r.ok) return await r.json();
+    } catch (_) {}
+  }
+  try {
+    return {
+      merchants: JSON.parse(localStorage.getItem("grab.merchants") || "{}"),
+      events: JSON.parse(localStorage.getItem("grab.events") || "[]"),
+    };
+  } catch {
+    return { merchants: {}, events: [] };
+  }
+}
+
+async function saveStorage(data) {
+  if (isExtension) {
+    return new Promise((res) => chrome.storage.local.set(data, () => res()));
+  }
+  if (data.merchants !== undefined) localStorage.setItem("grab.merchants", JSON.stringify(data.merchants));
+  if (data.events !== undefined) localStorage.setItem("grab.events", JSON.stringify(data.events));
+}
+
+async function clearStorage() {
+  if (isExtension) {
+    return new Promise((res) => chrome.storage.local.clear(() => res()));
+  }
+  localStorage.removeItem("grab.merchants");
+  localStorage.removeItem("grab.events");
+}
+
 async function load() {
-  const data = await new Promise((res) =>
-    chrome.storage.local.get(["merchants", "events"], (d) => res(d || {})),
-  );
+  const data = await loadStorage();
   state.merchants = data.merchants || {};
   state.events = data.events || [];
   const ids = Object.keys(state.merchants);
@@ -374,7 +415,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("clear-btn").addEventListener("click", async () => {
     if (!confirm("ลบข้อมูลทั้งหมด (เมนู + log) จริงๆ?")) return;
-    await new Promise((res) => chrome.storage.local.clear(() => res()));
+    await clearStorage();
     state = {
       merchants: {},
       events: [],
@@ -386,10 +427,71 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   });
 
+  // Export data as JSON
+  const doExport = async () => {
+    const data = await loadStorage();
+    const text = JSON.stringify(data, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("✅ Copy ข้อมูลใส่ clipboard แล้ว");
+    } catch {
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `grab-menu-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+  $("export-btn").addEventListener("click", doExport);
+
+  // Import dialog
+  const importDialog = $("import-dialog");
+  const openImport = () => {
+    $("import-text").value = "";
+    importDialog.showModal();
+  };
+  $("import-btn").addEventListener("click", openImport);
+  $("empty-import-btn")?.addEventListener("click", openImport);
+  $("import-cancel").addEventListener("click", () => importDialog.close());
+  $("import-submit").addEventListener("click", async () => {
+    const txt = $("import-text").value.trim();
+    if (!txt) return;
+    try {
+      const parsed = JSON.parse(txt);
+      if (!parsed.merchants || typeof parsed.merchants !== "object") throw new Error("ไม่มี merchants");
+      await saveStorage({ merchants: parsed.merchants, events: parsed.events || [] });
+      importDialog.close();
+      await load();
+      alert(`✅ Import ${Object.keys(parsed.merchants).length} สาขา · ${(parsed.events || []).length} events`);
+    } catch (err) {
+      alert("❌ JSON ไม่ถูกต้อง: " + err.message);
+    }
+  });
+
+  // Hide hint if running standalone (not in extension)
+  if (!isExtension) {
+    const hint = $("empty-hint");
+    if (hint) {
+      hint.innerHTML = isLocalhost
+        ? "Local server พร้อม — เปิดหน้า merchant.grab.com ใน Chrome (มี extension) ข้อมูลจะ sync มาที่นี่อัตโนมัติทุกครั้งที่ refresh"
+        : "นี่คือ Local mode — กดปุ่ม Import แล้ววาง JSON จาก Chrome Extension";
+    }
+  }
+
   load();
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
-    if (changes.merchants || changes.events) load();
-  });
+  if (isExtension) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
+      if (changes.merchants || changes.events) load();
+    });
+  } else if (isLocalhost) {
+    setInterval(load, 5000); // poll local server every 5s
+  } else {
+    window.addEventListener("storage", (e) => {
+      if (e.key === "grab.merchants" || e.key === "grab.events") load();
+    });
+  }
 });

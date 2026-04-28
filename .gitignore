@@ -37,3 +37,18 @@ Thumbs.db
 
 # Claude Code local session settings
 .claude/
+
+# Encrypted credentials vault (do NOT commit)
+vault.enc
+
+# Runner artifacts (cookies, logs, secrets)
+runner/.env
+runner/profiles/
+runner/chrome-profiles/
+runner/logs/
+runner/node_modules/
+runner/branches.csv
+runner/branches.json
+
+# Server data (contains scraped menu)
+server-data.json

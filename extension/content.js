@@ -5,8 +5,29 @@
 
 (function () {
   "use strict";
-  const TAG = "[grab-menu/content v0.1.4]";
+  const TAG = "[grab-menu/content v0.3.0]";
+  const LOCAL_SYNC_URL = "http://localhost:8765/api/sync";
   console.log(TAG, "🟢 LOADED", "readyState:", document.readyState, "url:", location.pathname);
+
+  let syncTimer = null;
+  function scheduleSync() {
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncToLocal, 1500);
+  }
+  async function syncToLocal() {
+    try {
+      const data = await getStorage();
+      const body = JSON.stringify({ merchants: data.merchants || {}, events: data.events || [] });
+      const r = await fetch(LOCAL_SYNC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      if (r.ok) console.log(TAG, "🔄 synced to localhost");
+    } catch (_) {
+      // server not running — that's fine, ignore silently
+    }
+  }
 
   // ---------- API capture ----------
   window.addEventListener("message", (event) => {
@@ -161,6 +182,7 @@
 
     await setStorage({ merchants });
     console.log(TAG, `✅ saved merchant info: ${m.name}`);
+    scheduleSync();
   }
 
   async function saveMenuSnapshot(merchantId, items, ts, sourceUrl) {
@@ -185,6 +207,7 @@
 
     await setStorage({ merchants, events: eventLog });
     console.log(TAG, `✅ saved menu: ${items.length} items, +${events.length} events`);
+    scheduleSync();
   }
 
   function dedupeArr(a) {

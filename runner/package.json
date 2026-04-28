@@ -1,0 +1,19 @@
+{
+  "name": "grab-menu-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright orchestrator that visits all Grab merchant branches and triggers extension capture",
+  "type": "commonjs",
+  "scripts": {
+    "vault": "node vault-cli.js",
+    "run": "node index.js",
+    "run:once": "BRANCHES_LIMIT=1 node index.js",
+    "install-browsers": "playwright install chromium chrome"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

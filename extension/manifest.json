@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Grab Menu Checker",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ดึงข้อมูลเมนูจาก Grab Merchant Portal มาแสดงพร้อม Dashboard + log การเปลี่ยนสถานะ",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://merchant.grab.com/*",
     "https://*.grabtaxi.com/*",
-    "https://portal.grab.com/*"
+    "https://portal.grab.com/*",
+    "http://localhost:8765/*",
+    "http://127.0.0.1:8765/*"
   ],
   "content_scripts": [
     {

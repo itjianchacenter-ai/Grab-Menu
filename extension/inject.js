@@ -4,7 +4,7 @@
   "use strict";
   const TAG = "%c[grab-menu]";
   const STYLE = "color:#059669;font-weight:bold";
-  console.log(TAG, STYLE, "🟢 inject.js v0.1.4 LOADED (MAIN world) at", document.readyState);
+  console.log(TAG, STYLE, "🟢 inject.js v0.3.0 LOADED (MAIN world) at", document.readyState);
 
   let captureCount = 0;
   const POST = (payload) => window.postMessage({ __grabMenu: true, ...payload }, "*");

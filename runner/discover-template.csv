@@ -1,0 +1,4 @@
+username,password,name
+mkt.dragontown,Pear1234,JIANCHA TEA บรรทัดทอง
+user2,password2,(ตัวอย่าง — ไม่ต้องใส่ id ระบบจะหาให้)
+user3,password3,(ตัวอย่าง — name จะ override จากระบบถ้าหาเจอ)
