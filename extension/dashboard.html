@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Grab Menu Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="logo">🍜</span>
+        <h1>Grab Menu Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <span id="last-fetched" class="muted"></span>
+        <select id="branch-select"></select>
+        <button id="clear-btn" class="btn-danger">ล้างข้อมูล</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="empty" class="empty hidden">
+        <div class="empty-emoji">📭</div>
+        <h2>ยังไม่มีข้อมูล</h2>
+        <p>
+          เปิดหน้า
+          <a href="https://merchant.grab.com/food/menu" target="_blank">merchant.grab.com</a>
+          เพื่อให้ extension ดักข้อมูล แล้วกลับมาที่หน้านี้
+        </p>
+      </section>
+
+      <section id="content" class="hidden">
+        <div class="branch-info">
+          <h2 id="branch-name"></h2>
+          <p id="branch-meta" class="muted"></p>
+        </div>
+
+        <div id="stats" class="stats"></div>
+
+        <nav class="tabs">
+          <button class="tab active" data-tab="menu">📋 เมนู</button>
+          <button class="tab" data-tab="log">📜 Log การเปลี่ยนสถานะ</button>
+          <button class="tab" data-tab="hours">🕐 เวลาเปิดร้าน</button>
+        </nav>
+
+        <section id="view-menu" class="view">
+          <div class="filter-bar">
+            <input id="search" type="search" placeholder="ค้นหาเมนู..." />
+            <div class="filter-pills">
+              <button class="pill active" data-filter="all">ทั้งหมด</button>
+              <button class="pill" data-filter="available">🟢 ขายอยู่</button>
+              <button class="pill" data-filter="unavailable">🔴 หมด</button>
+            </div>
+            <select id="category-select">
+              <option value="">ทุกหมวดหมู่</option>
+            </select>
+          </div>
+          <div id="menu-list"></div>
+        </section>
+
+        <section id="view-log" class="view hidden">
+          <div class="filter-bar">
+            <select id="log-type-filter">
+              <option value="">ทุกประเภท</option>
+              <option value="OPENED">🟢 เปิดขาย</option>
+              <option value="CLOSED">🔴 ปิด/หมด</option>
+              <option value="PRICE_CHANGED">💰 ราคาเปลี่ยน</option>
+              <option value="ADDED">🆕 เมนูใหม่</option>
+              <option value="REMOVED">❌ ลบ</option>
+            </select>
+            <span id="log-count" class="muted"></span>
+          </div>
+          <div id="log-table"></div>
+        </section>
+
+        <section id="view-hours" class="view hidden">
+          <div id="hours-content"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

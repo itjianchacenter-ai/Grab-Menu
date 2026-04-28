@@ -8,11 +8,17 @@ dist/
 build/
 .next/
 out/
+next-env.d.ts
 
 # Env files
 .env
 .env.local
 .env.*.local
+
+# Database
+*.db
+*.db-journal
+prisma/dev.db*
 
 # Logs
 *.log
@@ -28,3 +34,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code local session settings
+.claude/

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Grab Menu Checker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="title">
+        <span class="logo">🍜</span>
+        <h1>Grab Menu</h1>
+        <button id="open-dashboard" class="open-dashboard-btn" title="เปิด Dashboard">📊</button>
+      </div>
+      <div class="actions">
+        <button id="tab-menu" class="tab active" data-tab="menu">เมนู</button>
+        <button id="tab-log" class="tab" data-tab="log">Log</button>
+      </div>
+    </header>
+
+    <section id="empty" class="empty hidden">
+      <p class="emoji">📭</p>
+      <p>ยังไม่มีข้อมูล</p>
+      <p class="hint">
+        เปิดหน้า
+        <a href="https://merchant.grab.com/food/menu" target="_blank">merchant.grab.com</a>
+        แล้วกดปุ่มด้านล่าง
+      </p>
+      <button id="capture-now-empty" class="primary-btn">🔄 ดึงเดี๋ยวนี้</button>
+    </section>
+
+    <section id="branch-bar" class="branch-bar hidden">
+      <select id="branch-select"></select>
+      <button id="capture-now" class="capture-btn" title="Force scrape current Grab tab">🔄</button>
+      <span id="last-fetched" class="last-fetched"></span>
+    </section>
+    <div id="capture-msg" class="capture-msg hidden"></div>
+
+    <section id="view-menu" class="view">
+      <div id="stats" class="stats"></div>
+      <div id="menu-list"></div>
+    </section>
+
+    <section id="view-log" class="view hidden">
+      <div id="log-list"></div>
+    </section>
+
+    <footer>
+      <button id="clear" class="link-danger">ล้างข้อมูลทั้งหมด</button>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
