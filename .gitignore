@@ -52,3 +52,7 @@ runner/branches.json
 
 # Server data (contains scraped menu)
 server-data.json
+
+# Backups: ignore everything except encrypted backups
+backups/*
+!backups/*.tar.gz.enc
