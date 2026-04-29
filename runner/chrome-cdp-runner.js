@@ -52,36 +52,42 @@ async function verifySynced(branchId, beforeTs) {
   }
 }
 
-async function processBranch(context, branch) {
+async function processBranch(context, branch, sharedPage) {
   const url = `https://merchant.grab.com/food/menu/${branch.id}/menuOverview`;
   const beforeTs = Date.now();
 
-  let page;
+  // Reuse the shared tab — extension state stays consistent (no fresh tab init each time)
+  const page = sharedPage;
+
   try {
-    page = await context.newPage();
+    // Disable cache so the menu API is always re-fetched
+    try {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+    } catch {}
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
   } catch (err) {
     log(`  ✗ navigation failed: ${err.message}`);
-    if (page) await page.close().catch(() => {});
     return { ok: false, error: "nav-failed" };
   }
 
-  // Check if redirected to /portal (means not logged in)
-  await sleep(3000);
+  // Wait for SPA to render and possibly redirect
+  await sleep(4000);
   const finalUrl = page.url();
   log(`  🔗 URL: ${finalUrl}`);
 
   if (!finalUrl.includes(branch.id)) {
     log(`  ⚠ not on branch URL — login needed for ${branch.username}`);
-    await page.close().catch(() => {});
     return { ok: false, error: `login needed (${branch.username})` };
   }
 
   log(`  ⏳ waiting ${WAIT_AFTER_OPEN}s for extension capture…`);
   await sleep(WAIT_AFTER_OPEN * 1000);
 
-  const verified = await verifySynced(branch.id, beforeTs);
-  await page.close().catch(() => {});
+  return verifySynced(branch.id, beforeTs).then((verified) => {
+    if (verified) return { ok: true, count: verified.itemCount };
+    return { ok: false, error: "no-data" };
+  });
 
   if (verified) {
     log(`  ✓ synced ${verified.itemCount} items`);
@@ -125,12 +131,30 @@ async function main() {
 
   log(`Processing ${branches.length} branches`);
 
+  // Reuse a single tab across all branches — extension state stays warm
+  const existingPages = context.pages();
+  const sharedPage = existingPages[0] || (await context.newPage());
+
+  // Tap into page console — shows extension [grab-menu] logs to help debug capture failures
+  sharedPage.on("console", (msg) => {
+    const t = msg.text();
+    if (t.includes("[grab-menu") || t.includes("✅") || t.includes("📦") || t.includes("synced")) {
+      log(`    [chrome] ${t.slice(0, 200)}`);
+    }
+  });
+
   const results = [];
   for (let i = 0; i < branches.length; i++) {
     const b = branches[i];
     log(`\n[${i + 1}/${branches.length}] ${b.name || b.id}`);
-    const r = await processBranch(context, b);
+    let r;
+    try {
+      r = await processBranch(context, b, sharedPage);
+    } catch (err) {
+      r = { ok: false, error: err.message };
+    }
     results.push({ branch: b, ...r });
+    if (r.ok) log(`  ✓ ${r.count} items`);
 
     if (i < branches.length - 1) {
       const d = randomDelay();
