@@ -26,6 +26,7 @@ const { load: loadVault } = require("./vault");
 
 const CDP_URL = process.env.CDP_URL || "http://localhost:9222";
 const SYNC_SERVER = process.env.SYNC_SERVER || "http://localhost:8765";
+const SYNC_TOKEN = process.env.SYNC_TOKEN || "";
 const DELAY_MIN = Number(process.env.DELAY_MIN || 5);
 const DELAY_MAX = Number(process.env.DELAY_MAX || 15);
 const WAIT_MAX = Number(process.env.WAIT_MAX || 25);
@@ -141,9 +142,11 @@ async function captureBranch(page, branchId) {
   // Build snapshot + POST to server
   const snapshot = normalizeMenu(menuJson, branchId, finalUrl, merchantInfo);
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (SYNC_TOKEN) headers["X-Sync-Token"] = SYNC_TOKEN;
     const r = await fetch(`${SYNC_SERVER}/api/sync`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ merchants: { [branchId]: snapshot }, events: [] }),
     });
     const j = await r.json();

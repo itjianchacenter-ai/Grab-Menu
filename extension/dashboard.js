@@ -63,7 +63,7 @@ let state = {
 
 // ========== Storage ==========
 const isExtension = typeof chrome !== "undefined" && chrome.storage?.local;
-const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const isFileScheme = location.protocol === "file:";
 const SYNC_API = `${location.origin}/api/data`;
 
 async function loadStorage() {
@@ -72,7 +72,8 @@ async function loadStorage() {
       chrome.storage.local.get(["merchants", "events"], (d) => res(d || {})),
     );
   }
-  if (isLocalhost) {
+  // Try server (works for localhost AND production domain)
+  if (!isFileScheme) {
     try {
       const r = await fetch(SYNC_API, { cache: "no-store", credentials: "same-origin" });
       if (r.status === 401) {
