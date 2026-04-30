@@ -2,7 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-// ---------- formatters ----------
+// ========== Formatters ==========
 function fmtTime(ts) {
   if (!ts) return "—";
   return new Date(ts).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -27,26 +27,41 @@ function fmtPrice(p) {
   return `฿${Number(p || 0).toLocaleString("th-TH", { maximumFractionDigits: 2 })}`;
 }
 function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[c]));
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]),
+  );
+}
+function shortBranchName(name) {
+  return (name || "?").replace(/^.+?\)\s*-\s*/, "").replace(/^.+?-\s*/, "").trim().slice(0, 50);
 }
 
-// ---------- state ----------
+// ========== Master branches ==========
+const MASTER_IDS = new Set([
+  "3-C6LELZAYNNVHGA", // Dragon Town
+  "3-C72TAKABAKE1V2", // Groove @Central World
+  "3-C4N3JLJHJTVGTJ", // Athenee Tower
+  "3-C62EJCKTEYJCCA", // Mega Bangna
+  "3-C7CDRBXCC2T1NJ", // Siam Discovery
+  "3-C7KGRRBBNPLGPE", // Siam Paragon
+  "3-C6U1BACJN321NN", // Central Ladprao
+  "3-C7K3EFBCPGB3VN", // Emsphere
+]);
+const isMaster = (id) => MASTER_IDS.has(id);
+
+// ========== State ==========
 let state = {
   merchants: {},
   events: [],
+  view: "overview", // overview | search | branch
   currentBranchId: null,
-  view: "menu",
+  branchTab: "menu", // menu | log | hours
   filters: { search: "", availability: "all", category: "" },
   logFilter: { type: "" },
+  searchQuery: "",
+  ownership: "all", // all | master | franchise
 };
 
-// Detect environment: extension (chrome.storage) vs standalone (localStorage / API)
+// ========== Storage ==========
 const isExtension = typeof chrome !== "undefined" && chrome.storage?.local;
 const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const SYNC_API = `${location.origin}/api/data`;
@@ -59,9 +74,13 @@ async function loadStorage() {
   }
   if (isLocalhost) {
     try {
-      const r = await fetch(SYNC_API, { cache: "no-store" });
+      const r = await fetch(SYNC_API, { cache: "no-store", credentials: "same-origin" });
+      if (r.status === 401) {
+        location.replace("/login.html");
+        return { merchants: {}, events: [] };
+      }
       if (r.ok) return await r.json();
-    } catch (_) {}
+    } catch {}
   }
   try {
     return {
@@ -70,6 +89,21 @@ async function loadStorage() {
     };
   } catch {
     return { merchants: {}, events: [] };
+  }
+}
+
+async function loadUser() {
+  if (!isLocalhost) return null;
+  try {
+    const r = await fetch("/api/me", { credentials: "same-origin" });
+    if (r.status === 401) {
+      location.replace("/login.html");
+      return null;
+    }
+    const j = await r.json();
+    return j.user || null;
+  } catch {
+    return null;
   }
 }
 
@@ -93,13 +127,10 @@ async function load() {
   const data = await loadStorage();
   state.merchants = data.merchants || {};
   state.events = data.events || [];
-  const ids = Object.keys(state.merchants);
-  if (!state.currentBranchId || !state.merchants[state.currentBranchId]) {
-    state.currentBranchId = ids[0] || null;
-  }
   render();
 }
 
+// ========== Render ==========
 function render() {
   const ids = Object.keys(state.merchants);
   if (ids.length === 0) {
@@ -110,93 +141,313 @@ function render() {
   $("empty").classList.add("hidden");
   $("content").classList.remove("hidden");
 
-  // Branch dropdown
-  const select = $("branch-select");
-  select.innerHTML = "";
-  for (const id of ids) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = state.merchants[id].name || id;
-    if (id === state.currentBranchId) opt.selected = true;
-    select.appendChild(opt);
+  // Update last-fetched
+  const latestTs = Math.max(0, ...Object.values(state.merchants).map((m) => m.lastFetched || 0));
+  $("last-fetched").textContent = latestTs ? `อัปเดตล่าสุด ${fmtRelative(latestTs)}` : "";
+
+  // Show/hide views
+  document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
+  $(`view-${state.view}`).classList.remove("hidden");
+
+  // Top-nav active state
+  document.querySelectorAll(".nav-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.view === state.view),
+  );
+  $("nav-branch").style.display = state.view === "branch" ? "block" : "none";
+
+  if (state.view === "overview") renderOverview();
+  else if (state.view === "search") renderSearch();
+  else if (state.view === "branch") renderBranch();
+}
+
+function renderOverview() {
+  const allMs = Object.values(state.merchants);
+  const masterCount = allMs.filter((m) => isMaster(m.id)).length;
+  const franchiseCount = allMs.length - masterCount;
+
+  // Apply ownership filter
+  let ms = allMs;
+  if (state.ownership === "master") ms = allMs.filter((m) => isMaster(m.id));
+  else if (state.ownership === "franchise") ms = allMs.filter((m) => !isMaster(m.id));
+
+  const totalItems = ms.reduce((s, m) => s + (m.items?.length || 0), 0);
+  const totalAvail = ms.reduce((s, m) => s + (m.items?.filter((i) => i.isAvailable).length || 0), 0);
+  const totalUnavail = totalItems - totalAvail;
+  const recentEvents = state.events.filter((e) => {
+    if (e.ts <= Date.now() - 24 * 3600 * 1000) return false;
+    const branch = Object.values(state.merchants).find((m) => (m.items || []).some((i) => i.id === e.menuId));
+    if (!branch) return true;
+    if (state.ownership === "master") return isMaster(branch.id);
+    if (state.ownership === "franchise") return !isMaster(branch.id);
+    return true;
+  }).length;
+
+  const overallPct = totalItems > 0 ? Math.round((totalAvail / totalItems) * 100) : 0;
+  $("overview-stats").innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${ms.length}</div>
+      <div class="stat-label">สาขา</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${totalItems}</div>
+      <div class="stat-label">เมนูรวม</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-value green">${totalAvail}</div>
+      <div class="stat-label">เปิดขาย · ${overallPct}%</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-value red">${totalUnavail}</div>
+      <div class="stat-label">ปิดขาย</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-value amber">${recentEvents}</div>
+      <div class="stat-label">เปลี่ยน 24 ชม.</div>
+    </div>
+  `;
+
+  // Rankings — Top 5 most/least available
+  renderRankings(allMs);
+
+  // Ownership filter pills
+  const filterBar = $("ownership-filter");
+  if (filterBar) {
+    filterBar.innerHTML = `
+      <button class="pill ${state.ownership === "all" ? "active" : ""}" data-ownership="all">
+        ทั้งหมด <span class="pill-count">${allMs.length}</span>
+      </button>
+      <button class="pill ${state.ownership === "master" ? "active" : ""}" data-ownership="master">
+        ⭐ Master <span class="pill-count">${masterCount}</span>
+      </button>
+      <button class="pill ${state.ownership === "franchise" ? "active" : ""}" data-ownership="franchise">
+        Franchise <span class="pill-count">${franchiseCount}</span>
+      </button>
+    `;
+    filterBar.querySelectorAll(".pill").forEach((b) => {
+      b.addEventListener("click", () => {
+        state.ownership = b.dataset.ownership;
+        renderOverview();
+      });
+    });
   }
 
-  const branch = state.merchants[state.currentBranchId];
-  if (!branch) return;
+  // Branch cards
+  const grid = $("branch-grid");
+  grid.innerHTML = "";
+  const sorted = ms.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  for (const m of sorted) {
+    const items = m.items || [];
+    const total = items.length;
+    const avail = items.filter((i) => i.isAvailable).length;
+    const unavail = total - avail;
+    const pct = total > 0 ? Math.round((avail / total) * 100) : 0;
+    const ago = m.lastFetched ? Date.now() - m.lastFetched : Infinity;
+    const freshClass = ago < 6 * 3600 * 1000 ? "fresh" : ago < 24 * 3600 * 1000 ? "stale" : "cold";
+    const barClass = pct >= 80 ? "" : pct >= 50 ? "mid" : "low";
 
-  $("last-fetched").textContent = `อัปเดต ${fmtRelative(branch.lastFetched)}`;
+    const card = document.createElement("article");
+    card.className = "branch-card" + (isMaster(m.id) ? " is-master" : "");
+    card.dataset.branchId = m.id;
+    const tag = isMaster(m.id)
+      ? `<span class="branch-tag master">⭐ MASTER</span>`
+      : `<span class="branch-tag franchise">FC</span>`;
+    card.innerHTML = `
+      <div class="branch-card-header">
+        <div class="branch-card-name">${escapeHtml(shortBranchName(m.name))}</div>
+        ${tag}
+      </div>
+      <div class="branch-card-bar ${barClass}">
+        <div class="branch-card-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="branch-card-stats">
+        <div class="branch-card-stat">
+          <div class="branch-card-stat-value">${total}</div>
+          <div class="branch-card-stat-label">เมนู</div>
+        </div>
+        <div class="branch-card-stat">
+          <div class="branch-card-stat-value green">${avail}</div>
+          <div class="branch-card-stat-label">เปิดขาย</div>
+        </div>
+        <div class="branch-card-stat">
+          <div class="branch-card-stat-value red">${unavail}</div>
+          <div class="branch-card-stat-label">ปิดขาย</div>
+        </div>
+      </div>
+      <div class="branch-card-foot">
+        <div class="branch-card-pct"><b>${pct}%</b>เปิดขาย</div>
+        <span class="branch-card-fresh ${freshClass}">${fmtRelative(m.lastFetched)}</span>
+      </div>
+    `;
+    card.addEventListener("click", () => switchToBranch(m.id));
+    grid.appendChild(card);
+  }
+}
+
+function renderSearch() {
+  const q = state.searchQuery.trim().toLowerCase();
+  const out = $("search-results");
+  if (!q) {
+    out.innerHTML = `<p class="muted" style="text-align:center;padding:30px">พิมพ์ชื่อเมนูเพื่อค้นหาในทุกสาขา</p>`;
+    return;
+  }
+
+  const matches = []; // [{branch, items}]
+  for (const m of Object.values(state.merchants)) {
+    const items = (m.items || []).filter(
+      (i) =>
+        (i.name || "").toLowerCase().includes(q) ||
+        (i.description || "").toLowerCase().includes(q),
+    );
+    if (items.length > 0) matches.push({ merchant: m, items });
+  }
+
+  if (matches.length === 0) {
+    out.innerHTML = `<p class="muted" style="text-align:center;padding:30px">ไม่พบ "${escapeHtml(q)}" ในสาขาใด</p>`;
+    return;
+  }
+
+  const totalHits = matches.reduce((s, m) => s + m.items.length, 0);
+  out.innerHTML = `<p class="muted">พบ <b>${totalHits}</b> รายการ ใน <b>${matches.length}</b> สาขา</p>`;
+
+  for (const { merchant, items } of matches) {
+    const group = document.createElement("div");
+    group.className = "search-result-group";
+    const availCount = items.filter((i) => i.isAvailable).length;
+    group.innerHTML = `
+      <div class="search-result-branch">
+        ${escapeHtml(shortBranchName(merchant.name))}
+        <span class="muted" style="font-weight:normal;font-size:11px">
+          · ${availCount}/${items.length} ขายอยู่
+        </span>
+      </div>
+    `;
+    for (const it of items) {
+      const row = document.createElement("div");
+      row.className = "search-result-item";
+      row.innerHTML = `
+        <div class="search-result-item-name">${escapeHtml(it.name)}</div>
+        <div class="search-result-item-status">
+          <span>${fmtPrice(it.price)}</span>
+          <span class="${it.isAvailable ? "" : ""}">${it.isAvailable ? "🟢" : "🔴"}</span>
+        </div>
+      `;
+      group.appendChild(row);
+    }
+    group.addEventListener("click", () => switchToBranch(merchant.id));
+    group.style.cursor = "pointer";
+    out.appendChild(group);
+  }
+}
+
+function renderRankings(allMs) {
+  const enriched = allMs
+    .filter((m) => (m.items || []).length > 0)
+    .map((m) => {
+      const items = m.items || [];
+      const total = items.length;
+      const avail = items.filter((i) => i.isAvailable).length;
+      const pct = total > 0 ? Math.round((avail / total) * 100) : 0;
+      return { m, total, avail, unavail: total - avail, pct };
+    });
+
+  const top = enriched
+    .slice()
+    .sort((a, b) => b.avail - a.avail || b.pct - a.pct)
+    .slice(0, 5);
+  const bottom = enriched
+    .slice()
+    .sort((a, b) => a.avail - b.avail || a.pct - b.pct)
+    .slice(0, 5);
+
+  const renderList = (list, target, type) => {
+    target.innerHTML = "";
+    list.forEach((row, i) => {
+      const li = document.createElement("li");
+      li.className = "ranking-item";
+      li.innerHTML = `
+        <span class="ranking-rank">${i + 1}</span>
+        <div class="ranking-name">
+          ${isMaster(row.m.id) ? '<span class="ranking-tag">⭐</span>' : ""}
+          ${escapeHtml(shortBranchName(row.m.name))}
+        </div>
+        <div class="ranking-stat">
+          <span class="ranking-num ${type === "top" ? "green" : "red"}">${row.avail}</span>
+          <span class="ranking-divider">/</span>
+          <span class="ranking-total">${row.total}</span>
+          <span class="ranking-pct">${row.pct}%</span>
+        </div>
+      `;
+      li.addEventListener("click", () => switchToBranch(row.m.id));
+      target.appendChild(li);
+    });
+  };
+  renderList(top, $("ranking-top"), "top");
+  renderList(bottom, $("ranking-bottom"), "bottom");
+}
+
+function switchToBranch(branchId) {
+  state.currentBranchId = branchId;
+  state.view = "branch";
+  state.branchTab = "menu";
+  state.filters = { search: "", availability: "all", category: "" };
+  render();
+}
+
+function renderBranch() {
+  const branch = state.merchants[state.currentBranchId];
+  if (!branch) {
+    state.view = "overview";
+    render();
+    return;
+  }
+
   $("branch-name").textContent = branch.name || branch.id;
   const meta = [];
   if (branch.address) meta.push(branch.address);
   if (branch.phone) meta.push(`☎ ${branch.phone}`);
   meta.push(`ID: ${branch.id}`);
+  meta.push(`อัปเดต: ${fmtRelative(branch.lastFetched)}`);
   $("branch-meta").textContent = meta.join(" · ");
 
-  renderStats(branch);
-  renderCategoriesDropdown(branch);
-
-  if (state.view === "menu") renderMenu(branch);
-  else if (state.view === "log") renderLog(branch);
-  else if (state.view === "hours") renderHours(branch);
-}
-
-function renderStats(branch) {
-  const total = branch.items.length;
-  const available = branch.items.filter((i) => i.isAvailable).length;
-  const unavailable = total - available;
+  // Stats
+  const items = branch.items || [];
+  const total = items.length;
+  const avail = items.filter((i) => i.isAvailable).length;
+  const unavail = total - avail;
   const eventsToday = state.events.filter(
     (e) => e.ts > Date.now() - 24 * 3600 * 1000 && belongsTo(e, branch),
   ).length;
-
   $("stats").innerHTML = `
-    <div class="stat-card">
-      <div class="stat-value">${total}</div>
-      <div class="stat-label">เมนูทั้งหมด</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value green">${available}</div>
-      <div class="stat-label">เปิดขายอยู่</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value red">${unavailable}</div>
-      <div class="stat-label">หมด/ปิด</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value amber">${eventsToday}</div>
-      <div class="stat-label">เปลี่ยนแปลง (24 ชม.)</div>
-    </div>
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">เมนูทั้งหมด</div></div>
+    <div class="stat-card"><div class="stat-value green">${avail}</div><div class="stat-label">เปิดขายอยู่</div></div>
+    <div class="stat-card"><div class="stat-value red">${unavail}</div><div class="stat-label">หมด/ปิด</div></div>
+    <div class="stat-card"><div class="stat-value amber">${eventsToday}</div><div class="stat-label">เปลี่ยน (24 ชม.)</div></div>
   `;
-}
 
-function renderCategoriesDropdown(branch) {
-  const select = $("category-select");
-  const cats = Array.from(new Set(branch.items.map((i) => i.category || "อื่นๆ")));
-  select.innerHTML = '<option value="">ทุกหมวดหมู่</option>';
+  // Tabs
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.branchTab));
+  document.querySelectorAll(".subview").forEach((v) => v.classList.add("hidden"));
+  $(`view-${state.branchTab}`).classList.remove("hidden");
+
+  // Categories dropdown
+  const cats = Array.from(new Set(items.map((i) => i.category || "อื่นๆ")));
+  const catSel = $("category-select");
+  catSel.innerHTML = '<option value="">ทุกหมวดหมู่</option>';
   for (const c of cats) {
     const opt = document.createElement("option");
     opt.value = c;
     opt.textContent = c;
     if (c === state.filters.category) opt.selected = true;
-    select.appendChild(opt);
+    catSel.appendChild(opt);
   }
+
+  if (state.branchTab === "menu") renderMenuTab(branch);
+  else if (state.branchTab === "log") renderLogTab(branch);
+  else if (state.branchTab === "hours") renderHoursTab(branch);
 }
 
-function belongsTo(event, branch) {
-  return branch.items.some((i) => i.id === event.menuId);
-}
-
-function lastEventByMenu(branch) {
-  const map = new Map();
-  for (const e of state.events) {
-    if (!belongsTo(e, branch)) continue;
-    const cur = map.get(e.menuId);
-    if (!cur || e.ts > cur.ts) map.set(e.menuId, e);
-  }
-  return map;
-}
-
-function renderMenu(branch) {
-  const filtered = branch.items.filter((i) => {
+function renderMenuTab(branch) {
+  const items = (branch.items || []).filter((i) => {
     if (state.filters.search) {
       const q = state.filters.search.toLowerCase();
       if (!(i.name || "").toLowerCase().includes(q) && !(i.description || "").toLowerCase().includes(q))
@@ -209,34 +460,32 @@ function renderMenu(branch) {
   });
 
   const grouped = new Map();
-  for (const item of filtered) {
-    const k = item.category || "อื่นๆ";
+  for (const it of items) {
+    const k = it.category || "อื่นๆ";
     if (!grouped.has(k)) grouped.set(k, []);
-    grouped.get(k).push(item);
+    grouped.get(k).push(it);
   }
 
   const lastEvents = lastEventByMenu(branch);
   const list = $("menu-list");
   list.innerHTML = "";
-
-  if (filtered.length === 0) {
+  if (items.length === 0) {
     list.innerHTML = `<p class="muted" style="text-align:center;padding:40px">ไม่มีรายการตรงกับตัวกรอง</p>`;
     return;
   }
-
-  for (const [cat, items] of grouped) {
-    const availInCat = items.filter((i) => i.isAvailable).length;
+  for (const [cat, its] of grouped) {
+    const availInCat = its.filter((i) => i.isAvailable).length;
     const section = document.createElement("section");
     section.className = "category";
     section.innerHTML = `
       <div class="category-head">
         <span class="category-name">${escapeHtml(cat)}</span>
-        <span class="category-meta">${availInCat} / ${items.length} ขายอยู่</span>
+        <span class="category-meta">${availInCat} / ${its.length} ขายอยู่</span>
       </div>
       <div class="menu-grid"></div>
     `;
     const grid = section.querySelector(".menu-grid");
-    for (const item of items) grid.appendChild(menuCard(item, lastEvents.get(item.id)));
+    for (const it of its) grid.appendChild(menuCard(it, lastEvents.get(it.id)));
     list.appendChild(section);
   }
 }
@@ -244,36 +493,21 @@ function renderMenu(branch) {
 function menuCard(m, lastEvent) {
   const card = document.createElement("article");
   card.className = "menu-card" + (m.isAvailable ? "" : " unavailable");
-
   const img = m.imageUrl
     ? `<img src="${escapeHtml(m.imageUrl)}" alt="" class="menu-image${m.isAvailable ? "" : " unavail"}" referrerpolicy="no-referrer" loading="lazy" />`
     : `<div class="menu-image-empty">🍽️</div>`;
-
   const badge = m.isAvailable
     ? `<span class="menu-badge green">ขายอยู่</span>`
     : `<span class="menu-badge red">หมด</span>`;
-
   let statusLine = "";
   if (lastEvent) {
-    if (lastEvent.type === "CLOSED")
-      statusLine = `<div class="menu-status closed">❌ ปิด ${fmtTime(lastEvent.ts)} · ${fmtRelative(lastEvent.ts)}</div>`;
-    else if (lastEvent.type === "OPENED")
-      statusLine = `<div class="menu-status opened">✅ เปิด ${fmtTime(lastEvent.ts)} · ${fmtRelative(lastEvent.ts)}</div>`;
-    else if (lastEvent.type === "PRICE_CHANGED")
-      statusLine = `<div class="menu-status">💰 ราคาเปลี่ยน · ${fmtRelative(lastEvent.ts)}</div>`;
-    else if (lastEvent.type === "ADDED")
-      statusLine = `<div class="menu-status">🆕 เพิ่มเมื่อ ${fmtRelative(lastEvent.ts)}</div>`;
+    if (lastEvent.type === "CLOSED") statusLine = `<div class="menu-status closed">❌ ปิด ${fmtTime(lastEvent.ts)} · ${fmtRelative(lastEvent.ts)}</div>`;
+    else if (lastEvent.type === "OPENED") statusLine = `<div class="menu-status opened">✅ เปิด ${fmtTime(lastEvent.ts)} · ${fmtRelative(lastEvent.ts)}</div>`;
+    else if (lastEvent.type === "PRICE_CHANGED") statusLine = `<div class="menu-status">💰 ราคาเปลี่ยน · ${fmtRelative(lastEvent.ts)}</div>`;
   }
-
-  const desc = m.description
-    ? `<div class="menu-desc">${escapeHtml(m.description)}</div>`
-    : "";
-
+  const desc = m.description ? `<div class="menu-desc">${escapeHtml(m.description)}</div>` : "";
   card.innerHTML = `
-    <div class="menu-image-wrap">
-      ${img}
-      ${badge}
-    </div>
+    <div class="menu-image-wrap">${img}${badge}</div>
     <div class="menu-body">
       <div class="menu-name">${escapeHtml(m.name)}</div>
       ${desc}
@@ -284,7 +518,7 @@ function menuCard(m, lastEvent) {
   return card;
 }
 
-function renderLog(branch) {
+function renderLogTab(branch) {
   const events = state.events
     .filter((e) => belongsTo(e, branch))
     .filter((e) => !state.logFilter.type || e.type === state.logFilter.type)
@@ -294,13 +528,7 @@ function renderLog(branch) {
 
   $("log-count").textContent = `${events.length} รายการ`;
 
-  const labels = {
-    OPENED: "เปิดขาย",
-    CLOSED: "ปิด/หมด",
-    PRICE_CHANGED: "ราคาเปลี่ยน",
-    ADDED: "เพิ่มเมนู",
-    REMOVED: "ลบ",
-  };
+  const labels = { OPENED: "เปิดขาย", CLOSED: "ปิด/หมด", PRICE_CHANGED: "ราคาเปลี่ยน", ADDED: "เพิ่มเมนู", REMOVED: "ลบ" };
 
   if (events.length === 0) {
     $("log-table").innerHTML = `<p class="muted" style="text-align:center;padding:40px">ยังไม่มี event</p>`;
@@ -312,27 +540,24 @@ function renderLog(branch) {
       let detail = "";
       if (e.type === "PRICE_CHANGED") detail = `${fmtPrice(e.from)} → ${fmtPrice(e.to)}`;
       return `
-      <tr>
-        <td class="muted" style="white-space:nowrap">${fmtDateTime(e.ts)}</td>
-        <td>${escapeHtml(e.menuName || e.menuId)}</td>
-        <td><span class="log-pill ${e.type}">${labels[e.type] || e.type}</span></td>
-        <td class="muted">${detail}</td>
-      </tr>
-    `;
+        <tr>
+          <td class="muted" style="white-space:nowrap">${fmtDateTime(e.ts)}</td>
+          <td>${escapeHtml(e.menuName || e.menuId)}</td>
+          <td><span class="log-pill ${e.type}">${labels[e.type] || e.type}</span></td>
+          <td class="muted">${detail}</td>
+        </tr>
+      `;
     })
     .join("");
-
   $("log-table").innerHTML = `
     <table class="log-table">
-      <thead>
-        <tr><th>เวลา</th><th>เมนู</th><th>ประเภท</th><th>รายละเอียด</th></tr>
-      </thead>
+      <thead><tr><th>เวลา</th><th>เมนู</th><th>ประเภท</th><th>รายละเอียด</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
 }
 
-function renderHours(branch) {
+function renderHoursTab(branch) {
   const container = $("hours-content");
   if (!branch.openHours) {
     container.innerHTML = `<p class="muted" style="text-align:center;padding:40px">ยังไม่มีข้อมูลเวลาเปิดร้าน</p>`;
@@ -345,12 +570,11 @@ function renderHours(branch) {
     container.innerHTML = `<p class="muted">รูปแบบเวลาเปิดร้านอ่านไม่ออก</p>`;
     return;
   }
-
   const days = ["จันทร์", "อังคาร", "พุธ", "พฤหัสฯ", "ศุกร์", "เสาร์", "อาทิตย์"];
   let html = '<div class="hours-grid">';
   if (Array.isArray(hours)) {
     hours.forEach((dh, i) => {
-      const day = days[i] || `วันที่ ${i + 1}`;
+      const day = days[i] || `วัน ${i + 1}`;
       const ranges = dh?.ranges;
       const text = Array.isArray(ranges) && ranges.length
         ? ranges.map((r) => `${r.start}–${r.end}`).join(", ")
@@ -369,65 +593,118 @@ function renderHours(branch) {
   container.innerHTML = html;
 }
 
-// ---------- Tab switching ----------
-function switchTab(tab) {
-  state.view = tab;
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-  document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
-  $(`view-${tab}`).classList.remove("hidden");
-  render();
+function belongsTo(event, branch) {
+  return (branch.items || []).some((i) => i.id === event.menuId);
+}
+function lastEventByMenu(branch) {
+  const map = new Map();
+  for (const e of state.events) {
+    if (!belongsTo(e, branch)) continue;
+    const cur = map.get(e.menuId);
+    if (!cur || e.ts > cur.ts) map.set(e.menuId, e);
+  }
+  return map;
 }
 
-// ---------- Event listeners ----------
+// ========== Event handlers ==========
+async function initUserPill() {
+  if (!isLocalhost) return;
+  const user = await loadUser();
+  if (!user) return;
+  $("user-icon").textContent = user.role_icon || "👤";
+  $("user-name").textContent = user.name || user.username;
+  $("user-role").textContent = user.role_label || user.role || "";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
-  });
+  initUserPill();
 
-  $("branch-select").addEventListener("change", (e) => {
-    state.currentBranchId = e.target.value;
-    render();
-  });
+  // Logout
+  const logoutBtn = $("logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+      try {
+        await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+      } catch {}
+      location.replace("/login.html");
+    });
+  }
 
-  $("search").addEventListener("input", (e) => {
-    state.filters.search = e.target.value;
-    render();
-  });
-
-  document.querySelectorAll(".pill").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".pill").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.filters.availability = btn.dataset.filter;
+  // Top-nav
+  document.querySelectorAll(".nav-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      state.view = b.dataset.view;
       render();
     });
   });
 
+  // Back to overview
+  $("back-to-overview").addEventListener("click", () => {
+    state.view = "overview";
+    render();
+  });
+
+  // Cross search
+  $("cross-search").addEventListener("input", (e) => {
+    state.searchQuery = e.target.value;
+    renderSearch();
+  });
+
+  // Branch tabs
+  document.querySelectorAll(".tab").forEach((b) => {
+    b.addEventListener("click", () => {
+      state.branchTab = b.dataset.tab;
+      render();
+    });
+  });
+
+  $("search").addEventListener("input", (e) => {
+    state.filters.search = e.target.value;
+    renderMenuTab(state.merchants[state.currentBranchId]);
+  });
+  document.querySelectorAll(".pill").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".pill").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      state.filters.availability = b.dataset.filter;
+      renderMenuTab(state.merchants[state.currentBranchId]);
+    });
+  });
   $("category-select").addEventListener("change", (e) => {
     state.filters.category = e.target.value;
-    render();
+    renderMenuTab(state.merchants[state.currentBranchId]);
   });
-
   $("log-type-filter").addEventListener("change", (e) => {
     state.logFilter.type = e.target.value;
-    render();
+    renderLogTab(state.merchants[state.currentBranchId]);
   });
 
-  $("clear-btn").addEventListener("click", async () => {
+  // Refresh
+  $("refresh-btn").addEventListener("click", async () => {
+    const btn = $("refresh-btn");
+    btn.classList.add("spinning");
+    btn.disabled = true;
+    try {
+      await load();
+    } finally {
+      setTimeout(() => {
+        btn.classList.remove("spinning");
+        btn.disabled = false;
+      }, 400);
+    }
+  });
+
+  // Clear / Import / Export
+  $("clear-btn")?.addEventListener("click", async () => {
     if (!confirm("ลบข้อมูลทั้งหมด (เมนู + log) จริงๆ?")) return;
     await clearStorage();
-    state = {
-      merchants: {},
-      events: [],
-      currentBranchId: null,
-      view: "menu",
-      filters: { search: "", availability: "all", category: "" },
-      logFilter: { type: "" },
-    };
+    state.merchants = {};
+    state.events = [];
+    state.view = "overview";
+    state.currentBranchId = null;
     render();
   });
 
-  // Export data as JSON
   const doExport = async () => {
     const data = await loadStorage();
     const text = JSON.stringify(data, null, 2);
@@ -446,13 +723,12 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   $("export-btn").addEventListener("click", doExport);
 
-  // Import dialog
   const importDialog = $("import-dialog");
   const openImport = () => {
     $("import-text").value = "";
     importDialog.showModal();
   };
-  $("import-btn").addEventListener("click", openImport);
+  $("import-btn")?.addEventListener("click", openImport);
   $("empty-import-btn")?.addEventListener("click", openImport);
   $("import-cancel").addEventListener("click", () => importDialog.close());
   $("import-submit").addEventListener("click", async () => {
@@ -464,21 +740,11 @@ document.addEventListener("DOMContentLoaded", () => {
       await saveStorage({ merchants: parsed.merchants, events: parsed.events || [] });
       importDialog.close();
       await load();
-      alert(`✅ Import ${Object.keys(parsed.merchants).length} สาขา · ${(parsed.events || []).length} events`);
+      alert(`✅ Import ${Object.keys(parsed.merchants).length} สาขา`);
     } catch (err) {
-      alert("❌ JSON ไม่ถูกต้อง: " + err.message);
+      alert("❌ JSON ไม่ถูก: " + err.message);
     }
   });
-
-  // Hide hint if running standalone (not in extension)
-  if (!isExtension) {
-    const hint = $("empty-hint");
-    if (hint) {
-      hint.innerHTML = isLocalhost
-        ? "Local server พร้อม — เปิดหน้า merchant.grab.com ใน Chrome (มี extension) ข้อมูลจะ sync มาที่นี่อัตโนมัติทุกครั้งที่ refresh"
-        : "นี่คือ Local mode — กดปุ่ม Import แล้ววาง JSON จาก Chrome Extension";
-    }
-  }
 
   load();
 
@@ -488,10 +754,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (changes.merchants || changes.events) load();
     });
   } else if (isLocalhost) {
-    setInterval(load, 5000); // poll local server every 5s
-  } else {
-    window.addEventListener("storage", (e) => {
-      if (e.key === "grab.merchants" || e.key === "grab.events") load();
-    });
+    setInterval(load, 30000); // refresh from server every 30s
   }
 });

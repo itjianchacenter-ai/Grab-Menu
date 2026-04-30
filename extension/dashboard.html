@@ -4,20 +4,36 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Grab Menu Dashboard</title>
-    <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="dashboard.css?v=2" />
   </head>
   <body>
     <header class="topbar">
       <div class="topbar-left">
-        <span class="logo">🍜</span>
-        <h1>Grab Menu Dashboard</h1>
+        <svg class="brand-logo-icon" viewBox="0 0 200 200" fill="none" stroke="currentColor" aria-hidden="true">
+          <circle cx="100" cy="100" r="88" stroke-width="6" />
+          <path d="M 45 138 C 65 118, 78 88, 95 72 C 105 65, 122 82, 138 110 C 145 122, 152 134, 156 138" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M 22 144 C 42 138, 62 148, 84 144 C 105 140, 130 150, 155 145 C 168 142, 175 144, 180 145" stroke-width="3" stroke-linecap="round" />
+          <path d="M 18 156 C 40 150, 60 160, 84 156 C 108 152, 132 162, 158 157 C 170 154, 178 156, 184 156" stroke-width="3" stroke-linecap="round" />
+          <path d="M 22 168 C 44 162, 64 172, 86 168 C 108 164, 132 174, 156 169 C 168 166, 176 168, 180 168" stroke-width="3" stroke-linecap="round" />
+        </svg>
+        <div class="brand-logo">JIANCHA</div>
+        <div class="brand-divider"></div>
+        <h1>Menu Dashboard</h1>
       </div>
       <div class="topbar-right">
         <span id="last-fetched" class="muted"></span>
-        <select id="branch-select"></select>
-        <button id="import-btn" class="btn-secondary" title="วาง JSON จาก Extension">📥 Import</button>
-        <button id="export-btn" class="btn-secondary" title="คัดลอก JSON">📤 Export</button>
-        <button id="clear-btn" class="btn-danger">ล้างข้อมูล</button>
+        <button id="refresh-btn" class="btn-primary" title="ดึงข้อมูลล่าสุดจาก Server">
+          <span class="refresh-icon">↻</span> Refresh
+        </button>
+        <button id="export-btn" class="btn-secondary" title="คัดลอก JSON">Export</button>
+        <div class="user-pill" id="user-pill">
+          <span class="user-icon" id="user-icon"></span>
+          <div class="user-meta">
+            <span class="user-name" id="user-name"></span>
+            <span class="user-role" id="user-role"></span>
+          </div>
+          <button id="logout-btn" class="logout-btn" title="ออกจากระบบ">⏻</button>
+        </div>
       </div>
     </header>
 
@@ -26,9 +42,7 @@
         <div class="empty-emoji">📭</div>
         <h2>ยังไม่มีข้อมูล</h2>
         <p id="empty-hint">
-          เปิดหน้า
-          <a href="https://merchant.grab.com/food/menu" target="_blank">merchant.grab.com</a>
-          เพื่อให้ extension ดักข้อมูล แล้วกลับมาที่หน้านี้
+          รัน <code>node auto-sync.js</code> เพื่อดึงเมนูจาก Grab
         </p>
         <button id="empty-import-btn" class="primary-btn-large">📥 Import JSON</button>
       </section>
@@ -37,13 +51,9 @@
         <form method="dialog" class="dialog-form">
           <h3>Import ข้อมูลจาก Extension</h3>
           <p class="muted" style="margin-bottom: 12px">
-            ใน Chrome Extension popup → กด "📤 Export" → คัดลอก JSON → วางที่นี่
+            วาง JSON ของ extension chrome.storage หรือ server-data.json
           </p>
-          <textarea
-            id="import-text"
-            rows="10"
-            placeholder='{"merchants": {...}, "events": [...]}'
-          ></textarea>
+          <textarea id="import-text" rows="10" placeholder='{"merchants": {...}, "events": [...]}'></textarea>
           <div class="dialog-actions">
             <button type="button" id="import-cancel">ยกเลิก</button>
             <button type="button" id="import-submit" class="btn-primary">นำเข้า</button>
@@ -52,55 +62,108 @@
       </dialog>
 
       <section id="content" class="hidden">
-        <div class="branch-info">
-          <h2 id="branch-name"></h2>
-          <p id="branch-meta" class="muted"></p>
-        </div>
-
-        <div id="stats" class="stats"></div>
-
-        <nav class="tabs">
-          <button class="tab active" data-tab="menu">📋 เมนู</button>
-          <button class="tab" data-tab="log">📜 Log การเปลี่ยนสถานะ</button>
-          <button class="tab" data-tab="hours">🕐 เวลาเปิดร้าน</button>
+        <!-- Top-level navigation -->
+        <nav class="top-nav">
+          <button class="nav-btn active" data-view="overview">🏠 ภาพรวม</button>
+          <button class="nav-btn" data-view="search">🔍 ค้นหาเมนู</button>
+          <button class="nav-btn" data-view="branch" id="nav-branch" style="display:none">📋 รายละเอียดสาขา</button>
         </nav>
 
-        <section id="view-menu" class="view">
-          <div class="filter-bar">
-            <input id="search" type="search" placeholder="ค้นหาเมนู..." />
-            <div class="filter-pills">
-              <button class="pill active" data-filter="all">ทั้งหมด</button>
-              <button class="pill" data-filter="available">🟢 ขายอยู่</button>
-              <button class="pill" data-filter="unavailable">🔴 หมด</button>
+        <!-- ━━━ OVERVIEW (all branches as cards) ━━━ -->
+        <section id="view-overview" class="view">
+          <div id="overview-stats" class="stats"></div>
+
+          <div class="rankings-grid">
+            <section class="ranking-card top">
+              <div class="ranking-head">
+                <span class="ranking-icon">🏆</span>
+                <div>
+                  <h3>Top 5 ขายเยอะสุด</h3>
+                  <p>เมนูเปิดขายมากที่สุด</p>
+                </div>
+              </div>
+              <ol id="ranking-top" class="ranking-list"></ol>
+            </section>
+            <section class="ranking-card bottom">
+              <div class="ranking-head">
+                <span class="ranking-icon">⚠️</span>
+                <div>
+                  <h3>Top 5 ขายน้อยสุด</h3>
+                  <p>ต้องตรวจสอบ ใส่เมนูเพิ่ม / เปิดขาย</p>
+                </div>
+              </div>
+              <ol id="ranking-bottom" class="ranking-list"></ol>
+            </section>
+          </div>
+
+          <div class="overview-toolbar">
+            <h2 class="section-title">สาขาทั้งหมด</h2>
+            <div id="ownership-filter" class="filter-pills"></div>
+          </div>
+          <div id="branch-grid" class="branch-grid"></div>
+        </section>
+
+        <!-- ━━━ CROSS-BRANCH SEARCH ━━━ -->
+        <section id="view-search" class="view hidden">
+          <div class="search-hero">
+            <input id="cross-search" type="search" placeholder="พิมพ์ชื่อเมนู เช่น 'ชาเขียว'..." autofocus />
+          </div>
+          <div id="search-results"></div>
+        </section>
+
+        <!-- ━━━ PER-BRANCH DETAIL ━━━ -->
+        <section id="view-branch" class="view hidden">
+          <button id="back-to-overview" class="link-back">← กลับหน้าภาพรวม</button>
+          <div class="branch-info">
+            <h2 id="branch-name"></h2>
+            <p id="branch-meta" class="muted"></p>
+          </div>
+
+          <div id="stats" class="stats"></div>
+
+          <nav class="tabs">
+            <button class="tab active" data-tab="menu">📋 เมนู</button>
+            <button class="tab" data-tab="log">📜 Log การเปลี่ยนสถานะ</button>
+            <button class="tab" data-tab="hours">🕐 เวลาเปิดร้าน</button>
+          </nav>
+
+          <section id="view-menu" class="subview">
+            <div class="filter-bar">
+              <input id="search" type="search" placeholder="ค้นหาเมนูในสาขานี้..." />
+              <div class="filter-pills">
+                <button class="pill active" data-filter="all">ทั้งหมด</button>
+                <button class="pill" data-filter="available">🟢 ขายอยู่</button>
+                <button class="pill" data-filter="unavailable">🔴 หมด</button>
+              </div>
+              <select id="category-select">
+                <option value="">ทุกหมวดหมู่</option>
+              </select>
             </div>
-            <select id="category-select">
-              <option value="">ทุกหมวดหมู่</option>
-            </select>
-          </div>
-          <div id="menu-list"></div>
-        </section>
+            <div id="menu-list"></div>
+          </section>
 
-        <section id="view-log" class="view hidden">
-          <div class="filter-bar">
-            <select id="log-type-filter">
-              <option value="">ทุกประเภท</option>
-              <option value="OPENED">🟢 เปิดขาย</option>
-              <option value="CLOSED">🔴 ปิด/หมด</option>
-              <option value="PRICE_CHANGED">💰 ราคาเปลี่ยน</option>
-              <option value="ADDED">🆕 เมนูใหม่</option>
-              <option value="REMOVED">❌ ลบ</option>
-            </select>
-            <span id="log-count" class="muted"></span>
-          </div>
-          <div id="log-table"></div>
-        </section>
+          <section id="view-log" class="subview hidden">
+            <div class="filter-bar">
+              <select id="log-type-filter">
+                <option value="">ทุกประเภท</option>
+                <option value="OPENED">🟢 เปิดขาย</option>
+                <option value="CLOSED">🔴 ปิด/หมด</option>
+                <option value="PRICE_CHANGED">💰 ราคาเปลี่ยน</option>
+                <option value="ADDED">🆕 เมนูใหม่</option>
+                <option value="REMOVED">❌ ลบ</option>
+              </select>
+              <span id="log-count" class="muted"></span>
+            </div>
+            <div id="log-table"></div>
+          </section>
 
-        <section id="view-hours" class="view hidden">
-          <div id="hours-content"></div>
+          <section id="view-hours" class="subview hidden">
+            <div id="hours-content"></div>
+          </section>
         </section>
       </section>
     </main>
 
-    <script src="dashboard.js"></script>
+    <script src="dashboard.js?v=2"></script>
   </body>
 </html>

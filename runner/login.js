@@ -63,11 +63,11 @@ async function login(page, branch) {
 
   // Some pages have a "Continue" / "Next" step before showing password
   const continueBtn = page.locator(
-    'button:has-text("Continue"), button:has-text("Next"), button:has-text("ดำเนินการต่อ"), button:has-text("ถัดไป")',
+    'button:has-text("Continue"), button:has-text("Next"), button:has-text("ดำเนินการต่อ"), button:has-text("ถัดไป"), button:has-text("ต่อไป")',
   );
   if ((await continueBtn.count()) > 0) {
     await continueBtn.first().click().catch(() => {});
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2500);
   }
 
   // Password field
@@ -100,6 +100,10 @@ async function login(page, branch) {
     'button:has-text("Sign in")',
     'button:has-text("เข้าสู่ระบบ")',
     'button:has-text("ล็อกอิน")',
+    'button:has-text("ต่อไป")',
+    'button:has-text("ถัดไป")',
+    'button:has-text("Continue")',
+    'button:has-text("Next")',
   ];
   let submit = null;
   for (const sel of submitSelectors) {

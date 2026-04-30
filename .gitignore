@@ -41,14 +41,24 @@ Thumbs.db
 # Encrypted credentials vault (do NOT commit)
 vault.enc
 
+# User auth + sessions (do NOT commit)
+users.json
+.sessions.json
+scripts/init-users.py
+
+# Watchdog config (Slack webhook URL — do NOT commit)
+scripts/watchdog.env
+
 # Runner artifacts (cookies, logs, secrets)
 runner/.env
 runner/profiles/
 runner/chrome-profiles/
+runner/auth-profiles/
 runner/logs/
 runner/node_modules/
 runner/branches.csv
 runner/branches.json
+cookies/
 
 # Server data (contains scraped menu)
 server-data.json

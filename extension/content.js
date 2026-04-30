@@ -234,13 +234,31 @@
   });
 
   // ---------- storage ----------
+  function chromeOk() {
+    return typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
+  }
   function getStorage() {
-    return new Promise((resolve) =>
-      chrome.storage.local.get(["merchants", "events", "rawCaptures"], (data) => resolve(data || {})),
-    );
+    return new Promise((resolve) => {
+      if (!chromeOk()) return resolve({});
+      try {
+        chrome.storage.local.get(["merchants", "events", "rawCaptures"], (data) => {
+          if (chrome.runtime?.lastError) return resolve({});
+          resolve(data || {});
+        });
+      } catch (_) {
+        resolve({});
+      }
+    });
   }
   function setStorage(obj) {
-    return new Promise((resolve) => chrome.storage.local.set(obj, () => resolve()));
+    return new Promise((resolve) => {
+      if (!chromeOk()) return resolve();
+      try {
+        chrome.storage.local.set(obj, () => resolve());
+      } catch (_) {
+        resolve();
+      }
+    });
   }
 
   // ---------- diff ----------

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jiancha.grab-sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>cd "/Users/guest1123/Grab - Menu/runner" &amp;&amp; JITTER_MIN=60 JITTER_MAX=300 /opt/homebrew/bin/node multi-account-sync.js --skip-fresh-hours 5 --jitter --shuffle &gt;&gt; logs/launchd.log 2&gt;&amp;1</string>
+    </array>
+
+    <!-- Every 6 hours (was 3h) — reduce Grab anti-bot exposure -->
+    <key>StartInterval</key>
+    <integer>21600</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/guest1123/Grab - Menu/runner/logs/launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/guest1123/Grab - Menu/runner/logs/launchd.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/guest1123/Grab - Menu/runner</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

@@ -1,0 +1,22 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor">
+  <!-- Outer circle -->
+  <circle cx="100" cy="100" r="88" stroke-width="4" />
+
+  <!-- Mountain peak with layered detail -->
+  <path d="M 45 138 C 65 118, 78 88, 95 72 C 105 65, 122 82, 138 110 C 145 122, 152 134, 156 138"
+        stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Mountain inner detail lines (snow/peak texture) -->
+  <path d="M 78 122 C 88 110, 96 100, 102 92" stroke-width="1.5" stroke-linecap="round" />
+  <path d="M 88 130 C 98 118, 105 110, 112 100" stroke-width="1.5" stroke-linecap="round" />
+  <path d="M 98 138 C 108 126, 115 116, 122 108" stroke-width="1.5" stroke-linecap="round" />
+
+  <!-- Wave layers (flowing water/clouds) -->
+  <path d="M 22 144 C 42 138, 62 148, 84 144 C 105 140, 130 150, 155 145 C 168 142, 175 144, 180 145"
+        stroke-width="2" stroke-linecap="round" />
+  <path d="M 18 156 C 40 150, 60 160, 84 156 C 108 152, 132 162, 158 157 C 170 154, 178 156, 184 156"
+        stroke-width="2" stroke-linecap="round" />
+  <path d="M 22 168 C 44 162, 64 172, 86 168 C 108 164, 132 174, 156 169 C 168 166, 176 168, 180 168"
+        stroke-width="2" stroke-linecap="round" />
+  <path d="M 28 178 C 50 174, 70 182, 90 178 C 110 174, 132 182, 152 179 C 162 177, 168 178, 172 178"
+        stroke-width="2" stroke-linecap="round" />
+</svg>
