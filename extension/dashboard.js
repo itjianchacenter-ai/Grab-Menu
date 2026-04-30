@@ -171,8 +171,19 @@ function renderOverview() {
   if (state.ownership === "master") ms = allMs.filter((m) => isMaster(m.id));
   else if (state.ownership === "franchise") ms = allMs.filter((m) => !isMaster(m.id));
 
-  const totalItems = ms.reduce((s, m) => s + (m.items?.length || 0), 0);
-  const totalAvail = ms.reduce((s, m) => s + (m.items?.filter((i) => i.isAvailable).length || 0), 0);
+  // Unique menu types (deduplicated by name across all branches)
+  const uniqueTypes = new Set();
+  const uniqueAvailTypes = new Set();
+  for (const m of ms) {
+    for (const it of m.items || []) {
+      const k = (it.name || "").trim().toLowerCase();
+      if (!k) continue;
+      uniqueTypes.add(k);
+      if (it.isAvailable) uniqueAvailTypes.add(k);
+    }
+  }
+  const totalItems = uniqueTypes.size;
+  const totalAvail = uniqueAvailTypes.size;
   const totalUnavail = totalItems - totalAvail;
   const recentEvents = state.events.filter((e) => {
     if (e.ts <= Date.now() - 24 * 3600 * 1000) return false;
