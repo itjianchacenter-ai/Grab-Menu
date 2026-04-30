@@ -206,13 +206,13 @@ function renderOverview() {
       <div class="stat-value">${totalItems}</div>
       <div class="stat-label">เมนูรวม</div>
     </div>
-    <div class="stat-card green">
+    <div class="stat-card green clickable" data-action="open-menu-status" data-mode="available" title="ดูเมนูที่เปิดขาย">
       <div class="stat-value green">${totalAvail}</div>
-      <div class="stat-label">เปิดขาย · ${overallPct}%</div>
+      <div class="stat-label">เปิดขาย · ${overallPct}% ▸</div>
     </div>
-    <div class="stat-card red">
+    <div class="stat-card red clickable" data-action="open-menu-status" data-mode="unavailable" title="ดูเมนูที่ปิดขาย">
       <div class="stat-value red">${totalUnavail}</div>
-      <div class="stat-label">ปิดขาย</div>
+      <div class="stat-label">ปิดขาย ▸</div>
     </div>
     <div class="stat-card amber clickable" data-action="open-events" title="ดูรายการเปิด/ปิดเมนู">
       <div class="stat-value amber">${recentEvents}</div>
@@ -351,6 +351,91 @@ function renderSearch() {
     group.style.cursor = "pointer";
     out.appendChild(group);
   }
+}
+
+function openMenuStatusDialog(mode) {
+  // mode: "available" or "unavailable"
+  const allMs = Object.values(state.merchants);
+  let ms = allMs;
+  if (state.ownership === "master") ms = allMs.filter((m) => isMaster(m.id));
+  else if (state.ownership === "franchise") ms = allMs.filter((m) => !isMaster(m.id));
+
+  // Aggregate by menu name
+  const byName = new Map();
+  for (const m of ms) {
+    const bn = (m.name || "?").split(" - ").slice(-1)[0].trim();
+    for (const it of m.items || []) {
+      const k = (it.name || "").trim().toLowerCase();
+      if (!k) continue;
+      if (!byName.has(k)) byName.set(k, { name: it.name, open: [], closed: [] });
+      const target = it.isAvailable ? "open" : "closed";
+      byName.get(k)[target].push({ branch: m, name: bn });
+    }
+  }
+
+  let items = [...byName.values()].map((v) => ({
+    ...v,
+    total: v.open.length + v.closed.length,
+    pct: v.open.length / (v.open.length + v.closed.length || 1),
+  }));
+
+  // Filter by mode
+  if (mode === "available") {
+    items = items.filter((i) => i.open.length > 0);
+    items.sort((a, b) => b.open.length - a.open.length || b.pct - a.pct);
+  } else {
+    items = items.filter((i) => i.closed.length > 0);
+    items.sort((a, b) => b.closed.length - a.closed.length || a.pct - b.pct);
+  }
+
+  $("menu-status-title").textContent =
+    mode === "available" ? "🟢 เมนูที่เปิดขาย" : "🔴 เมนูที่ปิดขาย";
+  $("menu-status-meta").textContent =
+    mode === "available"
+      ? `${items.length} เมนู (มีอย่างน้อย 1 สาขาเปิดขาย)`
+      : `${items.length} เมนู (มีอย่างน้อย 1 สาขาปิดขาย)`;
+
+  const list = $("menu-status-list");
+  if (items.length === 0) {
+    list.innerHTML = `<div class="event-empty">ไม่มีเมนูในกลุ่มนี้</div>`;
+  } else {
+    list.innerHTML = items
+      .map((it, i) => {
+        const open = it.open.length;
+        const total = it.total;
+        const pct = Math.round(it.pct * 100);
+        const isAllOpen = it.closed.length === 0;
+        const isAllClosed = it.open.length === 0;
+        const tag = isAllOpen
+          ? `<span class="ms-tag full-open">100% เปิด</span>`
+          : isAllClosed
+          ? `<span class="ms-tag all-closed">⚠ ปิดทุกสาขา</span>`
+          : `<span class="ms-tag mixed">${pct}% เปิด</span>`;
+        const branches = mode === "available" ? it.open : it.closed;
+        const branchList = branches
+          .slice(0, 6)
+          .map((b) => `<span class="ms-branch">${escapeHtml(b.name.slice(0, 40))}</span>`)
+          .join("");
+        const more = branches.length > 6 ? `<span class="ms-more">+${branches.length - 6}</span>` : "";
+        return `
+          <details class="ms-row">
+            <summary>
+              <span class="ms-rank">${i + 1}</span>
+              <span class="ms-name">${escapeHtml(it.name)}</span>
+              <span class="ms-stat">
+                <b class="${mode === "available" ? "green" : "red"}">${mode === "available" ? open : it.closed.length}</b>
+                <span class="ms-divider">/</span>
+                <span class="ms-total">${total}</span>
+              </span>
+              ${tag}
+            </summary>
+            <div class="ms-branches">${branchList}${more}</div>
+          </details>
+        `;
+      })
+      .join("");
+  }
+  $("menu-status-dialog").showModal();
 }
 
 function openEventsDialog() {
@@ -740,11 +825,14 @@ document.addEventListener("DOMContentLoaded", () => {
     renderLogTab(state.merchants[state.currentBranchId]);
   });
 
-  // Events dialog — click on amber stat card opens 24h event list
+  // Stat card click handlers
   $("overview-stats").addEventListener("click", (e) => {
     if (e.target.closest('[data-action="open-events"]')) openEventsDialog();
+    const ms = e.target.closest('[data-action="open-menu-status"]');
+    if (ms) openMenuStatusDialog(ms.dataset.mode);
   });
   $("events-dialog-close").addEventListener("click", () => $("events-dialog").close());
+  $("menu-status-close").addEventListener("click", () => $("menu-status-dialog").close());
 
   // Refresh
   $("refresh-btn").addEventListener("click", async () => {

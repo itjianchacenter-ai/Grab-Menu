@@ -545,6 +545,108 @@ body {
   border-color: var(--jc-tan);
 }
 
+/* Menu status dialog (เปิด/ปิดขาย breakdown) */
+#menu-status-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 760px;
+  width: 92%;
+  max-height: 82vh;
+  box-shadow: var(--shadow-lg);
+  background: var(--jc-paper);
+}
+#menu-status-dialog::backdrop {
+  background: rgba(24, 24, 24, 0.55);
+}
+#menu-status-list {
+  overflow-y: auto;
+  max-height: calc(82vh - 90px);
+  padding: 6px 0;
+}
+.ms-row {
+  border-bottom: 1px solid var(--jc-line-soft);
+}
+.ms-row:last-child { border-bottom: none; }
+.ms-row summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 24px;
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.12s;
+}
+.ms-row summary::-webkit-details-marker { display: none; }
+.ms-row summary:hover { background: var(--jc-cream); }
+.ms-row[open] summary { background: var(--jc-cream); }
+.ms-rank {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--jc-charcoal);
+  text-align: center;
+}
+.ms-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-stat {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.ms-stat b { font-size: 16px; font-weight: 800; }
+.ms-stat b.green { color: var(--jc-success); }
+.ms-stat b.red { color: var(--jc-danger); }
+.ms-divider { color: var(--jc-line); margin: 0 2px; }
+.ms-total { color: var(--jc-charcoal); font-weight: 600; }
+.ms-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ms-tag.full-open {
+  background: var(--jc-success-soft);
+  color: var(--jc-success);
+}
+.ms-tag.all-closed {
+  background: var(--jc-danger-soft);
+  color: var(--jc-danger);
+}
+.ms-tag.mixed {
+  background: var(--jc-amber-soft);
+  color: var(--jc-amber);
+}
+.ms-branches {
+  padding: 8px 24px 16px 64px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ms-branch {
+  font-size: 11px;
+  background: var(--jc-paper);
+  border: 1px solid var(--jc-line);
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--jc-charcoal);
+}
+.ms-more {
+  font-size: 11px;
+  color: var(--jc-tan-dark);
+  padding: 4px 10px;
+  font-weight: 700;
+}
+
 /* ════════════════════════════════════════════════════════════
    Rankings — Top/Bottom 5 (executive insight)
    ──────────────────────────────────────────────────────────── */
