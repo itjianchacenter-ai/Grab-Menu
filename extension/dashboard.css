@@ -74,6 +74,55 @@ body {
   color: var(--jc-tan);
   flex-shrink: 0;
 }
+
+/* Live URL pill — production URL indicator */
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  margin-left: 16px;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.02em;
+  transition: all 0.15s ease;
+}
+.live-pill:hover {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: rgba(74, 222, 128, 0.55);
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  background: #4ade80;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+  animation: livePulse 2s ease infinite;
+}
+@keyframes livePulse {
+  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+.live-label {
+  color: #4ade80;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.live-host {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+.live-pill:hover .live-host {
+  color: var(--jc-paper);
+}
+@media (max-width: 720px) {
+  .live-host { display: none; }
+}
 .brand-logo {
   font-size: 18px;
   font-weight: 800;
@@ -376,6 +425,124 @@ body {
   color: var(--jc-charcoal);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Events dialog (เปิด/ปิด 24h drill-down)
+   ──────────────────────────────────────────────────────────── */
+#events-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 720px;
+  width: 92%;
+  max-height: 80vh;
+  box-shadow: var(--shadow-lg);
+  background: var(--jc-paper);
+}
+#events-dialog::backdrop {
+  background: rgba(24, 24, 24, 0.55);
+}
+.events-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--jc-line-soft);
+}
+.events-dialog-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--jc-ink);
+  margin: 0 0 4px;
+}
+.events-dialog-header p {
+  margin: 0;
+  font-size: 12px;
+}
+.events-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--jc-charcoal);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.events-close-btn:hover {
+  background: var(--jc-cream);
+  color: var(--jc-ink);
+}
+#events-list {
+  overflow-y: auto;
+  max-height: calc(80vh - 90px);
+  padding: 8px 0;
+}
+.event-row {
+  display: grid;
+  grid-template-columns: 80px 90px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--jc-line-soft);
+  font-size: 13px;
+}
+.event-row:last-child { border-bottom: none; }
+.event-time {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  color: var(--jc-charcoal);
+  font-weight: 600;
+}
+.event-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.event-pill.OPENED {
+  background: var(--jc-success-soft);
+  color: var(--jc-success);
+}
+.event-pill.CLOSED {
+  background: var(--jc-danger-soft);
+  color: var(--jc-danger);
+}
+.event-menu {
+  font-weight: 600;
+  color: var(--jc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-branch {
+  font-size: 11px;
+  color: var(--jc-charcoal);
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.event-empty {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--jc-charcoal);
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.stat-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--jc-tan);
 }
 
 /* ════════════════════════════════════════════════════════════

@@ -214,9 +214,9 @@ function renderOverview() {
       <div class="stat-value red">${totalUnavail}</div>
       <div class="stat-label">ปิดขาย</div>
     </div>
-    <div class="stat-card amber">
+    <div class="stat-card amber clickable" data-action="open-events" title="ดูรายการเปิด/ปิดเมนู">
       <div class="stat-value amber">${recentEvents}</div>
-      <div class="stat-label">เปิด/ปิด 24 ชม.</div>
+      <div class="stat-label">เปิด/ปิด 24 ชม. ▸</div>
     </div>
   `;
 
@@ -351,6 +351,53 @@ function renderSearch() {
     group.style.cursor = "pointer";
     out.appendChild(group);
   }
+}
+
+function openEventsDialog() {
+  const cutoff = Date.now() - 24 * 3600 * 1000;
+  const events = state.events
+    .filter((e) => e.ts > cutoff && (e.type === "OPENED" || e.type === "CLOSED"))
+    .map((e) => {
+      const branch = Object.values(state.merchants).find((m) => (m.items || []).some((i) => i.id === e.menuId));
+      return { ...e, branch };
+    })
+    .filter((e) => {
+      if (!e.branch) return state.ownership === "all";
+      if (state.ownership === "master") return isMaster(e.branch.id);
+      if (state.ownership === "franchise") return !isMaster(e.branch.id);
+      return true;
+    })
+    .sort((a, b) => b.ts - a.ts);
+
+  const opened = events.filter((e) => e.type === "OPENED").length;
+  const closed = events.filter((e) => e.type === "CLOSED").length;
+  $("events-dialog-meta").textContent = `${events.length} รายการ · ${opened} เปิด · ${closed} ปิด`;
+
+  const list = $("events-list");
+  if (events.length === 0) {
+    list.innerHTML = `<div class="event-empty">ยังไม่มีการเปิด/ปิดเมนูใน 24 ชม.ที่ผ่านมา</div>`;
+  } else {
+    list.innerHTML = events
+      .map((e) => `
+        <div class="event-row" data-branch-id="${escapeHtml(e.branch?.id || "")}">
+          <span class="event-time">${fmtTime(e.ts)}</span>
+          <span class="event-pill ${e.type}">${e.type === "OPENED" ? "🟢 เปิด" : "🔴 ปิด"}</span>
+          <span class="event-menu" title="${escapeHtml(e.menuName || e.menuId)}">${escapeHtml(e.menuName || e.menuId)}</span>
+          <span class="event-branch">${escapeHtml(shortBranchName(e.branch?.name || "?"))}</span>
+        </div>
+      `)
+      .join("");
+    list.querySelectorAll(".event-row[data-branch-id]").forEach((row) => {
+      const id = row.dataset.branchId;
+      if (!id) return;
+      row.style.cursor = "pointer";
+      row.addEventListener("click", () => {
+        $("events-dialog").close();
+        switchToBranch(id);
+      });
+    });
+  }
+  $("events-dialog").showModal();
 }
 
 function renderRankings(allMs) {
@@ -692,6 +739,12 @@ document.addEventListener("DOMContentLoaded", () => {
     state.logFilter.type = e.target.value;
     renderLogTab(state.merchants[state.currentBranchId]);
   });
+
+  // Events dialog — click on amber stat card opens 24h event list
+  $("overview-stats").addEventListener("click", (e) => {
+    if (e.target.closest('[data-action="open-events"]')) openEventsDialog();
+  });
+  $("events-dialog-close").addEventListener("click", () => $("events-dialog").close());
 
   // Refresh
   $("refresh-btn").addEventListener("click", async () => {

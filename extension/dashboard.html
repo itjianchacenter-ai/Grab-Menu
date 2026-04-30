@@ -19,6 +19,11 @@
         <div class="brand-logo">JIANCHA</div>
         <div class="brand-divider"></div>
         <h1>Menu Dashboard</h1>
+        <a class="live-pill" href="https://dashboard.jc-group-global.com" target="_blank" rel="noopener" title="Production URL">
+          <span class="live-dot"></span>
+          <span class="live-label">LIVE</span>
+          <span class="live-host">dashboard.jc-group-global.com</span>
+        </a>
       </div>
       <div class="topbar-right">
         <span id="last-fetched" class="muted"></span>
@@ -46,6 +51,17 @@
         </p>
         <button id="empty-import-btn" class="primary-btn-large">📥 Import JSON</button>
       </section>
+
+      <dialog id="events-dialog">
+        <div class="events-dialog-header">
+          <div>
+            <h3>เปิด/ปิด เมนู 24 ชม.ที่ผ่านมา</h3>
+            <p id="events-dialog-meta" class="muted"></p>
+          </div>
+          <button type="button" id="events-dialog-close" class="events-close-btn" aria-label="ปิด">×</button>
+        </div>
+        <div id="events-list"></div>
+      </dialog>
 
       <dialog id="import-dialog">
         <form method="dialog" class="dialog-form">
