@@ -18,6 +18,7 @@ if [ -f "$CONFIG" ]; then
 fi
 
 URL="http://localhost:8765/api/health"
+PROD_URL="${PROD_URL:-https://grab.jc-group-global.com/api/health}"
 STALE_HOURS="${STALE_HOURS:-8}"
 CHROME_PORT="${CHROME_PORT:-9222}"
 ALERT_FORMAT="${ALERT_FORMAT:-slack}"
@@ -114,7 +115,21 @@ except: print('0|')
   fi
 fi
 
-# ─── Check 5: log file sizes ─────────────────────────────────
+# ─── Check 5: DigitalOcean production endpoint ───────────────
+if ! prod_resp=$(curl -fsS --max-time 10 "$PROD_URL" 2>&1); then
+  alert "Production DOWN — $PROD_URL not responding (team can't access dashboard)"
+else
+  prod_stale=$(echo "$prod_resp" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('last_sync_minutes_ago') or 0)" 2>/dev/null || echo 0)
+  prod_merchants=$(echo "$prod_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('merchants', 0))" 2>/dev/null || echo 0)
+  prod_max=$((STALE_HOURS * 60))
+  if [ "$prod_stale" -gt "$prod_max" ]; then
+    alert "Production data stale — DO last sync ${prod_stale}min ago (>${STALE_HOURS}h)"
+  else
+    log "✓ Production live: $prod_merchants merchants, last sync ${prod_stale}min ago"
+  fi
+fi
+
+# ─── Check 6: log file sizes ─────────────────────────────────
 for f in "$ROOT/logs/dashboard.err.log" "$ROOT/runner/logs/launchd.log"; do
   [ -f "$f" ] || continue
   size_mb=$(du -m "$f" | cut -f1)
