@@ -187,6 +187,8 @@ function renderOverview() {
   const totalUnavail = totalItems - totalAvail;
   const recentEvents = state.events.filter((e) => {
     if (e.ts <= Date.now() - 24 * 3600 * 1000) return false;
+    // Count only menu state changes (open/close), not initial seed events
+    if (e.type !== "OPENED" && e.type !== "CLOSED") return false;
     const branch = Object.values(state.merchants).find((m) => (m.items || []).some((i) => i.id === e.menuId));
     if (!branch) return true;
     if (state.ownership === "master") return isMaster(branch.id);
@@ -214,7 +216,7 @@ function renderOverview() {
     </div>
     <div class="stat-card amber">
       <div class="stat-value amber">${recentEvents}</div>
-      <div class="stat-label">เปลี่ยน 24 ชม.</div>
+      <div class="stat-label">เปิด/ปิด 24 ชม.</div>
     </div>
   `;
 
